@@ -52,3 +52,23 @@ class TestElasticityModel:
         d_low = model.predict_demand("electronics", np.array([10.0]))[0]
         d_high = model.predict_demand("electronics", np.array([40.0]))[0]
         assert d_low > d_high
+
+    def test_fit_skips_nonpositive_and_nan_rows(self, synthetic_data):
+        # log-log OLS can't take price/quantity <= 0 or NaN, so the fit drops
+        # those rows. n_observations should count only the usable ones.
+        n_clean = len(synthetic_data)
+        dirty = pd.concat(
+            [
+                synthetic_data,
+                pd.DataFrame(
+                    {
+                        "price": [0.0, -5.0, 20.0, np.nan],
+                        "quantity": [100.0, 100.0, np.nan, 100.0],
+                        "segment": ["electronics"] * 4,
+                    }
+                ),
+            ],
+            ignore_index=True,
+        )
+        results = ElasticityModel().fit(dirty)
+        assert results[0].n_observations == n_clean
