@@ -28,10 +28,10 @@ src/
 ├── optimizer.py        # Revenue maximization with constraints
 ├── demand.py           # Demand simulation at candidate prices
 ├── segmentation.py     # Product clustering for group pricing
-├── config.py           # Business rules & constraints
+└── config.py           # Business rules & constraints
 tests/
 ├── test_elasticity.py
-├── test_optimizer.py
+└── test_optimizer.py
 README.md
 requirements.txt
 ```
