@@ -104,7 +104,12 @@ class ElasticityModel:
 
     def predict_demand(self, segment: str, prices: np.ndarray, controls: np.ndarray | None = None) -> np.ndarray:
         """Predict demand for given *prices* using the fitted segment model."""
-        model = self._models[segment]
+        try:
+            model = self._models[segment]
+        except KeyError:
+            available = ", ".join(map(str, sorted(self._models)))
+            hint = f"available segments: {available}" if available else "call fit() first"
+            raise KeyError(f"no fitted model for segment {segment!r} ({hint})") from None
         ln_p = np.log(prices).reshape(-1, 1)
         X = ln_p
         if controls is not None:
