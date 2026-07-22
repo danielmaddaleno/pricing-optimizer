@@ -110,6 +110,12 @@ class ElasticityModel:
             available = ", ".join(map(str, sorted(self._models)))
             hint = f"available segments: {available}" if available else "call fit() first"
             raise KeyError(f"no fitted model for segment {segment!r} ({hint})") from None
+        prices = np.asarray(prices, dtype=float)
+        if prices.size and prices.min() <= 0:
+            raise ValueError(
+                "prices must be strictly positive for a log-log demand model, "
+                f"got a minimum of {prices.min()}"
+            )
         ln_p = np.log(prices).reshape(-1, 1)
         X = ln_p
         if controls is not None:
