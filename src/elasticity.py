@@ -113,8 +113,7 @@ class ElasticityModel:
         prices = np.asarray(prices, dtype=float)
         if prices.size and prices.min() <= 0:
             raise ValueError(
-                "prices must be strictly positive for a log-log demand model, "
-                f"got a minimum of {prices.min()}"
+                f"prices must be strictly positive for a log-log demand model, got a minimum of {prices.min()}"
             )
         ln_p = np.log(prices).reshape(-1, 1)
         X = ln_p
