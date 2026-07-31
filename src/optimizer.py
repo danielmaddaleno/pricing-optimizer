@@ -57,6 +57,8 @@ class PriceOptimizer:
 
         Expects columns: product, segment, current_price, unit_cost.
         """
+        self._warn_insignificant_segments(products_df["segment"].unique())
+
         results: list[OptimizationResult] = []
 
         for _, row in products_df.iterrows():
@@ -69,6 +71,22 @@ class PriceOptimizer:
             results.append(res)
 
         return pd.DataFrame([r.__dict__ for r in results])
+
+    def _warn_insignificant_segments(self, segments) -> None:
+        """Log a warning for any segment whose elasticity is not significant.
+
+        Optimizing a price off an elasticity we cannot distinguish from zero
+        is guesswork, so we surface it once per segment instead of silently
+        trusting the number.
+        """
+        for segment in segments:
+            result = self.model.result_for(segment)
+            if result is not None and not result.significant:
+                logger.warning(
+                    "segment %r elasticity is not statistically significant (p=%.3f); price is unreliable",
+                    segment,
+                    result.p_value,
+                )
 
     def _optimize_product(
         self,

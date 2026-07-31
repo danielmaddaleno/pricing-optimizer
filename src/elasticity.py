@@ -191,3 +191,10 @@ class ElasticityModel:
     @property
     def results(self) -> list[ElasticityResult]:
         return self._results
+
+    def result_for(self, segment: str) -> ElasticityResult | None:
+        """Return the fitted result for *segment*, or None if it was not fit."""
+        for result in self._results:
+            if result.segment == segment:
+                return result
+        return None

@@ -1,5 +1,7 @@
 """Tests for the price optimizer."""
 
+import logging
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -62,3 +64,44 @@ class TestPriceOptimizer:
         opt = PriceOptimizer(fitted_model, min_margin=0.15, max_change=0.20)
         result = opt.optimize(products)
         assert result.iloc[0]["revenue_lift_pct"] >= -0.01
+
+    def test_warns_when_segment_elasticity_not_significant(self, caplog):
+        # A segment whose quantity does not move with price has an elasticity
+        # indistinguishable from zero, so the optimizer should flag it.
+        flat = pd.DataFrame(
+            {
+                "price": np.linspace(10, 50, 40),
+                "quantity": [100.0] * 40,
+                "segment": "flat",
+            }
+        )
+        model = ElasticityModel()
+        model.fit(flat)
+        assert not model.result_for("flat").significant
+
+        products = pd.DataFrame(
+            {
+                "product": ["SKU-flat"],
+                "segment": ["flat"],
+                "current_price": [25.0],
+                "unit_cost": [10.0],
+            }
+        )
+        opt = PriceOptimizer(model)
+        with caplog.at_level(logging.WARNING):
+            opt.optimize(products)
+        assert "not statistically significant" in caplog.text
+
+    def test_no_warning_for_significant_segment(self, fitted_model, caplog):
+        products = pd.DataFrame(
+            {
+                "product": ["SKU-004"],
+                "segment": ["A"],
+                "current_price": [25.0],
+                "unit_cost": [10.0],
+            }
+        )
+        opt = PriceOptimizer(fitted_model)
+        with caplog.at_level(logging.WARNING):
+            opt.optimize(products)
+        assert "not statistically significant" not in caplog.text
