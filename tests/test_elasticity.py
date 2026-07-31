@@ -1,5 +1,7 @@
 """Tests for elasticity estimation."""
 
+import math
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -72,3 +74,31 @@ class TestElasticityModel:
         )
         results = ElasticityModel().fit(dirty)
         assert results[0].n_observations == n_clean
+
+    def test_reports_significant_confidence_interval(self, synthetic_data):
+        result = ElasticityModel().fit(synthetic_data)[0]
+        # A real standard error and a CI that brackets the point estimate.
+        assert math.isfinite(result.std_error) and result.std_error > 0
+        assert result.ci_low < result.elasticity < result.ci_high
+        # CI half-width is the t critical value times the standard error.
+        half_width = (result.ci_high - result.ci_low) / 2
+        assert half_width == pytest.approx(1.96 * result.std_error, rel=0.05)
+        # The signal is strong, so the slope is clearly non-zero.
+        assert result.p_value < 1e-3
+        assert result.significant
+
+    def test_too_few_points_yield_no_inference(self):
+        # Two rows leave zero residual degrees of freedom, so inference is
+        # undefined: the fields stay NaN and the result is not significant.
+        tiny = pd.DataFrame(
+            {
+                "price": [10.0, 20.0],
+                "quantity": [100.0, 50.0],
+                "segment": ["x", "x"],
+            }
+        )
+        result = ElasticityModel().fit(tiny)[0]
+        assert result.n_observations == 2
+        assert math.isnan(result.std_error)
+        assert math.isnan(result.ci_low) and math.isnan(result.ci_high)
+        assert not result.significant
