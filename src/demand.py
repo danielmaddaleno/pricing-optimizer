@@ -17,8 +17,22 @@ def simulate_demand_curve(
     """Generate a demand curve for a segment across a price range.
 
     Returns DataFrame with columns: price, predicted_demand, revenue.
+
+    Raises
+    ------
+    ValueError
+        If ``n_points`` is below 2, or ``price_range`` is not strictly
+        increasing. A single point is not a curve, and a reversed range would
+        quietly produce a descending price grid that breaks the usual
+        "demand falls as price rises" reading of the output.
     """
-    prices = np.linspace(price_range[0], price_range[1], n_points)
+    low, high = price_range
+    if n_points < 2:
+        raise ValueError(f"a demand curve needs at least 2 price points, got n_points={n_points}")
+    if not low < high:
+        raise ValueError(f"price_range must be strictly increasing (low < high), got {price_range}")
+
+    prices = np.linspace(low, high, n_points)
     demands = model.predict_demand(segment, prices)
     revenues = prices * demands
 
