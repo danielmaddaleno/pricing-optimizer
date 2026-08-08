@@ -55,8 +55,16 @@ class PriceOptimizer:
     def optimize(self, products_df: pd.DataFrame) -> pd.DataFrame:
         """Optimize price for every row in *products_df*.
 
-        Expects columns: product, segment, current_price, unit_cost.
+        Expects columns: product, segment, current_price, and the configured
+        cost column (``unit_cost`` by default). Raises ``ValueError`` if any
+        are missing so the caller sees exactly what to add, rather than a
+        ``KeyError`` from deep inside the row loop.
         """
+        required = ["product", "segment", "current_price", self.cost_col]
+        missing = [col for col in required if col not in products_df.columns]
+        if missing:
+            raise ValueError(f"products_df is missing required column(s): {missing}. Expected {required}.")
+
         self._warn_insignificant_segments(products_df["segment"].unique())
 
         results: list[OptimizationResult] = []
