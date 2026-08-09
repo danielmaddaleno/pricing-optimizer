@@ -74,9 +74,11 @@ Elasticity is estimated per segment with plain OLS on log-transformed data, no r
 
 ## Roadmap
 
-- [ ] Improve test coverage
-- [ ] Add benchmarks
-- [ ] Docker support
+- Cross-price effects. Segments are fitted independently, so substitution between products is
+  invisible to the optimizer: it will happily reprice two competing SKUs as if neither existed.
+- Instrument for price endogeneity. OLS on observational price/quantity data leans on price being
+  exogenous, and in real transaction data it usually is not (prices move because demand moved).
+- Optimize a catalogue jointly under a shared constraint, rather than one segment at a time.
 
 ## License
 
