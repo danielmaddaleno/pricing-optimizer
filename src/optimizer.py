@@ -124,7 +124,7 @@ class PriceOptimizer:
             )
 
         def neg_revenue(p: float) -> float:
-            d = self.model.predict_demand(segment, np.array([p]))[0]
+            d = float(self.model.predict_demand(segment, np.array([p]))[0])
             return -(p * d)
 
         result = minimize_scalar(

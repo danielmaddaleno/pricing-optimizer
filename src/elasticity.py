@@ -185,8 +185,9 @@ class ElasticityModel:
         X = ln_p
         if controls is not None:
             X = np.hstack([ln_p, np.log(np.where(controls > 0, controls, 1))])
-        ln_q = model.predict(X)
-        return np.exp(ln_q)
+        ln_q = np.asarray(model.predict(X), dtype=float)
+        demand: np.ndarray = np.exp(ln_q)
+        return demand
 
     @property
     def results(self) -> list[ElasticityResult]:
