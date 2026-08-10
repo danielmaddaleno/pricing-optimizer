@@ -31,7 +31,25 @@ def segment_products(
     Returns
     -------
     Original DataFrame with an added ``segment`` column.
+
+    Raises
+    ------
+    ValueError
+        If ``features`` is empty, names a column missing from ``df``, or
+        ``n_clusters`` is below 1 or larger than the number of rows. K-Means
+        would otherwise fail deep in scikit-learn (or with a bare pandas
+        ``KeyError``), which hides what the caller actually got wrong.
     """
+    if not features:
+        raise ValueError("features must name at least one column to cluster on")
+    missing = [col for col in features if col not in df.columns]
+    if missing:
+        raise ValueError(f"df is missing feature column(s): {missing}")
+    if n_clusters < 1:
+        raise ValueError(f"n_clusters must be at least 1, got {n_clusters}")
+    if n_clusters > len(df):
+        raise ValueError(f"n_clusters={n_clusters} exceeds the number of products ({len(df)})")
+
     X = df[features].values
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
