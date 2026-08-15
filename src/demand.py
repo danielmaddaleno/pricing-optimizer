@@ -60,7 +60,18 @@ def what_if_analysis(
     Returns
     -------
     DataFrame with scenario, price, demand, revenue columns.
+
+    Raises
+    ------
+    ValueError
+        If ``scenarios`` is empty. With no scenarios the result would be a
+        DataFrame carrying none of the documented columns, so a downstream
+        access like ``result["revenue"]`` would raise a KeyError far from the
+        real cause. Failing here says exactly what is missing.
     """
+    if not scenarios:
+        raise ValueError("scenarios is empty; pass at least one name -> price to compare")
+
     rows = []
     for name, price in scenarios.items():
         demand = model.predict_demand(segment, np.array([price]))[0]
