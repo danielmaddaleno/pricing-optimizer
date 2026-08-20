@@ -92,6 +92,15 @@ class TestPriceOptimizer:
             opt.optimize(products)
         assert "not statistically significant" in caplog.text
 
+    @pytest.mark.parametrize("bad_margin", [1.0, 1.5, -0.1])
+    def test_rejects_out_of_range_min_margin(self, fitted_model, bad_margin):
+        with pytest.raises(ValueError, match="min_margin"):
+            PriceOptimizer(fitted_model, min_margin=bad_margin)
+
+    def test_rejects_negative_max_change(self, fitted_model):
+        with pytest.raises(ValueError, match="max_change"):
+            PriceOptimizer(fitted_model, max_change=-0.05)
+
     def test_no_warning_for_significant_segment(self, fitted_model, caplog):
         products = pd.DataFrame(
             {

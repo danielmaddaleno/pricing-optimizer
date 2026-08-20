@@ -47,6 +47,15 @@ class PriceOptimizer:
         max_change: float = 0.10,
         cost_col: str = "unit_cost",
     ):
+        # Guard the same bounds PricingRules enforces. A min_margin of 1 or
+        # more turns the margin floor unit_cost / (1 - min_margin) into a
+        # divide-by-zero or a negative price, and a negative max_change makes
+        # min_price exceed max_price for every product, so optimize() would
+        # quietly fall back to the current price for the whole catalogue.
+        if not 0.0 <= min_margin < 1.0:
+            raise ValueError(f"min_margin must be in [0, 1), got {min_margin}")
+        if max_change < 0.0:
+            raise ValueError(f"max_change must be non-negative, got {max_change}")
         self.model = model
         self.min_margin = min_margin
         self.max_change = max_change
