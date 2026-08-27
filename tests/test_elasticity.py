@@ -102,3 +102,20 @@ class TestElasticityModel:
         assert math.isnan(result.std_error)
         assert math.isnan(result.ci_low) and math.isnan(result.ci_high)
         assert not result.significant
+
+    def test_controls_transformed_the_same_way_in_fit_and_predict(self):
+        # A control that goes non-positive (a promo depth, a demand index
+        # centred at zero) is left untransformed by the fit. predict_demand
+        # has to do the same, otherwise those rows get different features at
+        # predict time than the coefficients were fitted on.
+        promo = np.array([-2.0, -1.0, 3.0, 5.0] * 25)
+        prices = np.linspace(10, 50, promo.size)
+        transformed = np.where(promo > 0, np.log(np.where(promo > 0, promo, 1.0)), promo)
+        quantity = 5000 * prices**-1.3 * np.exp(0.4 * transformed)
+        df = pd.DataFrame({"price": prices, "quantity": quantity, "segment": "p", "promo": promo})
+
+        model = ElasticityModel(controls=["promo"])
+        model.fit(df)
+
+        predicted = model.predict_demand("p", prices, promo.reshape(-1, 1))
+        assert predicted == pytest.approx(quantity, rel=1e-6)

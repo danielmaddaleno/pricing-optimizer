@@ -109,12 +109,9 @@ class ElasticityModel:
         ln_p = np.log(df[self.price_col].values).reshape(-1, 1)
         ln_q = np.log(df[self.demand_col].values)
 
-        # Add control variables in log-space if numeric
         X = ln_p
         if self.controls:
-            ctrl = df[self.controls].values
-            ctrl = np.where(ctrl > 0, np.log(ctrl), ctrl)
-            X = np.hstack([ln_p, ctrl])
+            X = np.hstack([ln_p, self._transform_controls(df[self.controls].values)])
 
         model = LinearRegression()
         model.fit(X, ln_q)
@@ -132,6 +129,18 @@ class ElasticityModel:
             ci_high=ci_high,
             p_value=p_value,
         )
+
+    @staticmethod
+    def _transform_controls(controls: np.ndarray) -> np.ndarray:
+        """Put control columns in log-space, leaving non-positive values alone.
+
+        fit() and predict_demand() both go through here so the same row gets
+        the same features at train and predict time.
+        """
+        ctrl = np.asarray(controls, dtype=float)
+        positive = ctrl > 0
+        transformed: np.ndarray = np.where(positive, np.log(np.where(positive, ctrl, 1.0)), ctrl)
+        return transformed
 
     @staticmethod
     def _slope_inference(X: np.ndarray, y: np.ndarray, model: LinearRegression) -> tuple[float, float, float, float]:
@@ -184,7 +193,7 @@ class ElasticityModel:
         ln_p = np.log(prices).reshape(-1, 1)
         X = ln_p
         if controls is not None:
-            X = np.hstack([ln_p, np.log(np.where(controls > 0, controls, 1))])
+            X = np.hstack([ln_p, self._transform_controls(controls)])
         ln_q = np.asarray(model.predict(X), dtype=float)
         demand: np.ndarray = np.exp(ln_q)
         return demand
