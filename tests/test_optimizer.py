@@ -114,3 +114,36 @@ class TestPriceOptimizer:
         with caplog.at_level(logging.WARNING):
             opt.optimize(products)
         assert "not statistically significant" not in caplog.text
+
+    @pytest.mark.parametrize("bad_cost", [float("nan"), float("inf"), -1.0])
+    def test_rejects_unusable_unit_cost(self, fitted_model, bad_cost):
+        # max(price_floor, nan) returns the price floor, so a NaN cost used to
+        # drop the margin constraint without a word and let the optimizer
+        # recommend a price below cost.
+        products = pd.DataFrame(
+            {
+                "product": ["SKU-005"],
+                "segment": ["A"],
+                "current_price": [25.0],
+                "unit_cost": [bad_cost],
+            }
+        )
+        opt = PriceOptimizer(fitted_model, min_margin=0.15, max_change=0.10)
+        with pytest.raises(ValueError, match="unit_cost"):
+            opt.optimize(products)
+
+    def test_margin_floor_binds_when_cost_is_high(self, fitted_model):
+        # Cost 24 with a 15% margin floor puts the cheapest legal price at
+        # 28.24, above the -10% change bound, so the floor is what decides.
+        products = pd.DataFrame(
+            {
+                "product": ["SKU-006"],
+                "segment": ["A"],
+                "current_price": [30.0],
+                "unit_cost": [24.0],
+            }
+        )
+        opt = PriceOptimizer(fitted_model, min_margin=0.15, max_change=0.10)
+        row = opt.optimize(products).iloc[0]
+        assert row["optimal_price"] >= 24.0 / 0.85 - 0.01
+        assert row["optimal_price"] == pytest.approx(24.0 / 0.85, abs=0.01)

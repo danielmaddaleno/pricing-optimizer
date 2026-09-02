@@ -112,6 +112,14 @@ class PriceOptimizer:
         current_price: float,
         unit_cost: float,
     ) -> OptimizationResult:
+        # A NaN cost slips through max() and takes the margin floor with it,
+        # which is how you end up recommending a price below cost.
+        if not np.isfinite(unit_cost) or unit_cost < 0:
+            raise ValueError(
+                f"unit_cost for product {product!r} must be a finite non-negative number "
+                f"to apply the margin floor, got {unit_cost!r}"
+            )
+
         # Price bounds
         min_price = max(
             current_price * (1 - self.max_change),
