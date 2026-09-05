@@ -12,6 +12,11 @@ Price elasticity modeling and constrained revenue optimization. Estimates demand
 3. **Revenue optimization**: maximize `price * predicted_demand` subject to business constraints (min margin, max price change)
 4. **What-if analysis**: compare demand and revenue across a set of pricing scenarios
 
+The demand model is constant-elasticity, `Q = A * P^beta`, so revenue `A * P^(beta+1)` is monotonic
+in price. It falls when `beta < -1` and rises when `-1 < beta < 0`, so the optimal price is always
+one of the two bounds and never an interior point. The bounded search is there to pick whichever
+corner the margin floor and the change ceiling leave open, and the tests assert both cases.
+
 ## Features
 
 - Elasticity models per product segment (scikit-learn linear regression on log-transformed price/quantity)

@@ -22,6 +22,18 @@ def fitted_model():
     return model
 
 
+@pytest.fixture
+def inelastic_model():
+    np.random.seed(7)
+    n = 300
+    prices = np.random.uniform(10, 50, n)
+    quantity = 5000 * (prices**-0.4) * np.exp(np.random.normal(0, 0.05, n))
+    df = pd.DataFrame({"price": prices, "quantity": quantity, "segment": "A"})
+    model = ElasticityModel()
+    model.fit(df)
+    return model
+
+
 class TestPriceOptimizer:
     def test_optimize_returns_dataframe(self, fitted_model):
         products = pd.DataFrame(
@@ -147,3 +159,35 @@ class TestPriceOptimizer:
         row = opt.optimize(products).iloc[0]
         assert row["optimal_price"] >= 24.0 / 0.85 - 0.01
         assert row["optimal_price"] == pytest.approx(24.0 / 0.85, abs=0.01)
+
+    def test_elastic_segment_prices_at_the_lower_bound(self, fitted_model):
+        # beta < -1, so revenue falls as price rises and the optimum is the
+        # cheapest legal price, here the -10% change bound.
+        assert fitted_model.result_for("A").elasticity < -1
+        products = pd.DataFrame(
+            {
+                "product": ["SKU-007"],
+                "segment": ["A"],
+                "current_price": [25.0],
+                "unit_cost": [10.0],
+            }
+        )
+        opt = PriceOptimizer(fitted_model, min_margin=0.15, max_change=0.10)
+        row = opt.optimize(products).iloc[0]
+        assert row["optimal_price"] == pytest.approx(22.5, abs=0.01)
+
+    def test_inelastic_segment_prices_at_the_upper_bound(self, inelastic_model):
+        # -1 < beta < 0, so revenue rises with price and the optimum flips to
+        # the other corner. Same optimizer, no special case.
+        assert -1 < inelastic_model.result_for("A").elasticity < 0
+        products = pd.DataFrame(
+            {
+                "product": ["SKU-008"],
+                "segment": ["A"],
+                "current_price": [25.0],
+                "unit_cost": [10.0],
+            }
+        )
+        opt = PriceOptimizer(inelastic_model, min_margin=0.15, max_change=0.10)
+        row = opt.optimize(products).iloc[0]
+        assert row["optimal_price"] == pytest.approx(27.5, abs=0.01)

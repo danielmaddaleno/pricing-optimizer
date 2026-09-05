@@ -38,6 +38,16 @@ class PriceOptimizer:
         Maximum allowed price change from current (e.g. 0.10 = ±10 %).
     cost_col : str
         Column in data with unit cost for margin constraint.
+
+    Notes
+    -----
+    Demand is constant-elasticity, Q = A * P**beta, so revenue A * P**(beta+1)
+    is monotonic in price. It falls when beta < -1 and rises when -1 < beta < 0,
+    which puts the optimum on one of the two bounds and never in the interior.
+    The bounded search is there to pick whichever corner the margin floor and
+    the change ceiling leave open, so the analytical case does not have to be
+    worked out per product. ``tests/test_optimizer.py`` asserts this for both
+    signs of beta.
     """
 
     def __init__(
