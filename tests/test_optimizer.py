@@ -191,3 +191,33 @@ class TestPriceOptimizer:
         opt = PriceOptimizer(inelastic_model, min_margin=0.15, max_change=0.10)
         row = opt.optimize(products).iloc[0]
         assert row["optimal_price"] == pytest.approx(27.5, abs=0.01)
+
+    def test_flags_a_product_with_no_legal_price(self, fitted_model, caplog):
+        # Cost 30 with a 15% margin floor needs at least 35.29, but the +10%
+        # change ceiling is 27.50, so no price satisfies both constraints.
+        products = pd.DataFrame(
+            {
+                "product": ["SKU-009"],
+                "segment": ["A"],
+                "current_price": [25.0],
+                "unit_cost": [30.0],
+            }
+        )
+        opt = PriceOptimizer(fitted_model, min_margin=0.15, max_change=0.10)
+        with caplog.at_level(logging.WARNING):
+            row = opt.optimize(products).iloc[0]
+        assert not row["feasible"]
+        assert row["optimal_price"] == 25.0
+        assert "no price satisfying both constraints" in caplog.text
+
+    def test_feasible_product_is_not_flagged(self, fitted_model):
+        products = pd.DataFrame(
+            {
+                "product": ["SKU-010"],
+                "segment": ["A"],
+                "current_price": [25.0],
+                "unit_cost": [10.0],
+            }
+        )
+        opt = PriceOptimizer(fitted_model, min_margin=0.15, max_change=0.10)
+        assert opt.optimize(products).iloc[0]["feasible"]

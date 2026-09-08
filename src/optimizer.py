@@ -23,6 +23,7 @@ class OptimizationResult:
     expected_demand: float
     expected_revenue: float
     revenue_lift_pct: float
+    feasible: bool = True
 
 
 class PriceOptimizer:
@@ -78,6 +79,11 @@ class PriceOptimizer:
         cost column (``unit_cost`` by default). Raises ``ValueError`` if any
         are missing so the caller sees exactly what to add, rather than a
         ``KeyError`` from deep inside the row loop.
+
+        A product whose margin floor sits above its change ceiling has no
+        legal price. Those rows come back with the current price and
+        ``feasible`` set to False, so they can be filtered out instead of
+        being read as a price that already satisfies the constraints.
         """
         required = ["product", "segment", "current_price", self.cost_col]
         missing = [col for col in required if col not in products_df.columns]
@@ -138,16 +144,27 @@ class PriceOptimizer:
         max_price = current_price * (1 + self.max_change)
 
         if min_price >= max_price:
-            # Infeasible, return the current price
+            # No price satisfies both constraints. We fall back to the current
+            # price, which may well be below the margin floor, so the row is
+            # flagged rather than reported as a zero-lift optimum.
+            logger.warning(
+                "%r has no price satisfying both constraints: margin floor $%.2f is above the "
+                "change ceiling $%.2f; keeping the current price $%.2f",
+                product,
+                min_price,
+                max_price,
+                current_price,
+            )
             demand = self.model.predict_demand(segment, np.array([current_price]))[0]
             return OptimizationResult(
                 product=product,
                 segment=segment,
-                current_price=current_price,
-                optimal_price=current_price,
-                expected_demand=demand,
-                expected_revenue=current_price * demand,
+                current_price=round(current_price, 2),
+                optimal_price=round(current_price, 2),
+                expected_demand=round(demand, 1),
+                expected_revenue=round(current_price * demand, 2),
                 revenue_lift_pct=0.0,
+                feasible=False,
             )
 
         def neg_revenue(p: float) -> float:

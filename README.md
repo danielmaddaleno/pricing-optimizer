@@ -77,6 +77,11 @@ make lint     # Linters
 
 Elasticity is estimated per segment with plain OLS on log-transformed data, no regularization or cross-validation. Works well on the synthetic data in the test suite; on real data you'd want to check residuals and consider a more robust estimator before trusting the coefficients.
 
+A product can also have no legal price at all, when its margin floor lands above its price-change
+ceiling. `optimize()` returns those rows with the current price and `feasible` set to False, and logs
+a warning naming the product. That price can be below cost, so filter on `feasible` before acting on
+the output.
+
 ## Roadmap
 
 - Cross-price effects. Segments are fitted independently, so substitution between products is
