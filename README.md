@@ -22,7 +22,8 @@ corner the margin floor and the change ceiling leave open, and the tests assert 
 - Elasticity models per product segment (scikit-learn linear regression on log-transformed price/quantity)
 - Bounded revenue maximization with `scipy.optimize.minimize_scalar`
 - Optional control variables (e.g. competitor price index) as extra log-space regressors
-- Configurable business rules: min margin %, max price change %
+- Configurable business rules: min margin %, max price change %, absolute price band and price
+  rounding, held in one pydantic `PricingRules` and passed to `PriceOptimizer.from_rules`
 - K-Means product segmentation for group pricing
 
 ## Project structure

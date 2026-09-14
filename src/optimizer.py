@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize_scalar
 
+from src.config import PricingRules
 from src.elasticity import ElasticityModel
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,11 @@ class PriceOptimizer:
         Maximum allowed price change from current (e.g. 0.10 = ±10 %).
     cost_col : str
         Column in data with unit cost for margin constraint.
+    price_floor, price_ceiling : float or None
+        Absolute price band applied on top of the per-product bounds. None
+        leaves that side to the margin floor and the change ceiling alone.
+    round_to : int
+        Decimal places for the reported prices.
 
     Notes
     -----
@@ -57,6 +63,9 @@ class PriceOptimizer:
         min_margin: float = 0.15,
         max_change: float = 0.10,
         cost_col: str = "unit_cost",
+        price_floor: float | None = None,
+        price_ceiling: float | None = None,
+        round_to: int = 2,
     ):
         # Guard the same bounds PricingRules enforces. A min_margin of 1 or
         # more turns the margin floor unit_cost / (1 - min_margin) into a
@@ -67,10 +76,36 @@ class PriceOptimizer:
             raise ValueError(f"min_margin must be in [0, 1), got {min_margin}")
         if max_change < 0.0:
             raise ValueError(f"max_change must be non-negative, got {max_change}")
+        if price_floor is not None and price_floor <= 0.0:
+            raise ValueError(f"price_floor must be positive, got {price_floor}")
+        if price_ceiling is not None and price_floor is not None and price_ceiling <= price_floor:
+            raise ValueError(f"price_ceiling ({price_ceiling}) must be greater than price_floor ({price_floor})")
+        if round_to < 0:
+            raise ValueError(f"round_to must be non-negative, got {round_to}")
         self.model = model
         self.min_margin = min_margin
         self.max_change = max_change
         self.cost_col = cost_col
+        self.price_floor = price_floor
+        self.price_ceiling = price_ceiling
+        self.round_to = round_to
+
+    @classmethod
+    def from_rules(cls, model: ElasticityModel, rules: PricingRules, cost_col: str = "unit_cost") -> "PriceOptimizer":
+        """Build an optimizer from a :class:`~src.config.PricingRules`.
+
+        Every field of the rules is used, so a policy written once in config
+        drives the optimizer instead of being restated in the constructor.
+        """
+        return cls(
+            model,
+            min_margin=rules.min_margin_pct,
+            max_change=rules.max_price_change_pct,
+            cost_col=cost_col,
+            price_floor=rules.min_price,
+            price_ceiling=rules.max_price,
+            round_to=rules.round_to,
+        )
 
     def optimize(self, products_df: pd.DataFrame) -> pd.DataFrame:
         """Optimize price for every row in *products_df*.
@@ -80,8 +115,8 @@ class PriceOptimizer:
         are missing so the caller sees exactly what to add, rather than a
         ``KeyError`` from deep inside the row loop.
 
-        A product whose margin floor sits above its change ceiling has no
-        legal price. Those rows come back with the current price and
+        A product whose lowest legal price ends up above its highest one has
+        no feasible price. Those rows come back with the current price and
         ``feasible`` set to False, so they can be filtered out instead of
         being read as a price that already satisfies the constraints.
         """
@@ -142,14 +177,18 @@ class PriceOptimizer:
             unit_cost / (1 - self.min_margin),  # margin floor
         )
         max_price = current_price * (1 + self.max_change)
+        if self.price_floor is not None:
+            min_price = max(min_price, self.price_floor)
+        if self.price_ceiling is not None:
+            max_price = min(max_price, self.price_ceiling)
 
         if min_price >= max_price:
             # No price satisfies both constraints. We fall back to the current
             # price, which may well be below the margin floor, so the row is
             # flagged rather than reported as a zero-lift optimum.
             logger.warning(
-                "%r has no price satisfying both constraints: margin floor $%.2f is above the "
-                "change ceiling $%.2f; keeping the current price $%.2f",
+                "%r has no price satisfying both constraints: the lowest legal price $%.2f is above "
+                "the highest legal price $%.2f; keeping the current price $%.2f",
                 product,
                 min_price,
                 max_price,
@@ -159,8 +198,8 @@ class PriceOptimizer:
             return OptimizationResult(
                 product=product,
                 segment=segment,
-                current_price=round(current_price, 2),
-                optimal_price=round(current_price, 2),
+                current_price=round(current_price, self.round_to),
+                optimal_price=round(current_price, self.round_to),
                 expected_demand=round(demand, 1),
                 expected_revenue=round(current_price * demand, 2),
                 revenue_lift_pct=0.0,
@@ -196,8 +235,8 @@ class PriceOptimizer:
         return OptimizationResult(
             product=product,
             segment=segment,
-            current_price=round(current_price, 2),
-            optimal_price=round(opt_price, 2),
+            current_price=round(current_price, self.round_to),
+            optimal_price=round(opt_price, self.round_to),
             expected_demand=round(opt_demand, 1),
             expected_revenue=round(opt_rev, 2),
             revenue_lift_pct=round(lift, 2),

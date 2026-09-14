@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from src.config import PricingRules
 from src.elasticity import ElasticityModel
 from src.optimizer import PriceOptimizer
 
@@ -221,3 +222,65 @@ class TestPriceOptimizer:
         )
         opt = PriceOptimizer(fitted_model, min_margin=0.15, max_change=0.10)
         assert opt.optimize(products).iloc[0]["feasible"]
+
+
+class TestFromRules:
+    def test_from_rules_carries_every_field(self, fitted_model):
+        rules = PricingRules(
+            min_margin_pct=0.25,
+            max_price_change_pct=0.05,
+            min_price=5.0,
+            max_price=500.0,
+            round_to=1,
+        )
+        opt = PriceOptimizer.from_rules(fitted_model, rules)
+        assert opt.min_margin == 0.25
+        assert opt.max_change == 0.05
+        assert opt.price_floor == 5.0
+        assert opt.price_ceiling == 500.0
+        assert opt.round_to == 1
+
+    def test_absolute_floor_lifts_the_price(self, fitted_model):
+        # Elastic segment, so without the floor this prices at the -10% bound
+        # of 22.50. A floor of 24 is what decides instead.
+        products = pd.DataFrame(
+            {
+                "product": ["SKU-011"],
+                "segment": ["A"],
+                "current_price": [25.0],
+                "unit_cost": [10.0],
+            }
+        )
+        rules = PricingRules(min_margin_pct=0.15, max_price_change_pct=0.10, min_price=24.0)
+        row = PriceOptimizer.from_rules(fitted_model, rules).optimize(products).iloc[0]
+        assert row["optimal_price"] == pytest.approx(24.0, abs=0.01)
+
+    def test_absolute_ceiling_can_make_a_product_infeasible(self, fitted_model, caplog):
+        products = pd.DataFrame(
+            {
+                "product": ["SKU-012"],
+                "segment": ["A"],
+                "current_price": [25.0],
+                "unit_cost": [10.0],
+            }
+        )
+        # The -10% change bound puts the cheapest legal price at 22.50, above
+        # the absolute ceiling of 20.
+        rules = PricingRules(min_margin_pct=0.15, max_price_change_pct=0.10, max_price=20.0)
+        with caplog.at_level(logging.WARNING):
+            row = PriceOptimizer.from_rules(fitted_model, rules).optimize(products).iloc[0]
+        assert not row["feasible"]
+        assert "no price satisfying both constraints" in caplog.text
+
+    def test_round_to_sets_the_price_precision(self, fitted_model):
+        products = pd.DataFrame(
+            {
+                "product": ["SKU-013"],
+                "segment": ["A"],
+                "current_price": [25.0],
+                "unit_cost": [24.0],
+            }
+        )
+        rules = PricingRules(min_margin_pct=0.15, max_price_change_pct=0.20, round_to=0)
+        row = PriceOptimizer.from_rules(fitted_model, rules).optimize(products).iloc[0]
+        assert row["optimal_price"] == round(row["optimal_price"])
