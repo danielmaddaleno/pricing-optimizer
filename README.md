@@ -37,7 +37,10 @@ src/
 └── config.py           # Business rules & constraints
 tests/
 ├── test_elasticity.py
-└── test_optimizer.py
+├── test_optimizer.py
+├── test_demand.py
+├── test_segmentation.py
+└── test_packaging.py
 README.md
 requirements.txt
 ```
@@ -82,6 +85,10 @@ A product can also have no legal price at all, when its margin floor lands above
 ceiling. `optimize()` returns those rows with the current price and `feasible` set to False, and logs
 a warning naming the product. That price can be below cost, so filter on `feasible` before acting on
 the output.
+
+`optimize()` calls the model with a price and nothing else, so it cannot drive a model fitted with
+control variables: that model expects the controls too and raises on the feature count. Controls are
+usable through `ElasticityModel.predict_demand` directly.
 
 ## Roadmap
 
